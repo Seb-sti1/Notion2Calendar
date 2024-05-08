@@ -1,0 +1,23 @@
+{
+  "name": "notion-to-gcalendar",
+  "version": "0.0.1",
+  "main": "src/app.ts",
+  "scripts": {
+    "dev": "nodemon",
+    "start": "tsc && node dist/app.js",
+    "build": "tsc"
+  },
+  "keywords": [
+    "notion",
+    "google calendar",
+    "synchronise"
+  ],
+  "author": "Seb-sti1",
+  "license": "GNU GPLv3",
+  "description": "It synchronises a collection from Notion to Google Calendar.",
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
