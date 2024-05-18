@@ -4,7 +4,7 @@
   "main": "src/app.ts",
   "scripts": {
     "dev": "nodemon",
-    "start": "tsc && node dist/app.js",
+    "start": "ts-node src/app.ts",
     "build": "tsc"
   },
   "keywords": [
@@ -16,8 +16,17 @@
   "license": "GNU GPLv3",
   "description": "It synchronises a collection from Notion to Google Calendar.",
   "devDependencies": {
+    "@eslint/js": "^9.3.0",
+    "eslint": "^8.57.0",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^7.9.0"
+  },
+  "dependencies": {
+    "@google-cloud/local-auth": "^2.1.0",
+    "@notionhq/client": "^2.2.15",
+    "dotenv": "^16.4.5",
+    "googleapis": "^105.0.0"
   }
 }
