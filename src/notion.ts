@@ -5,16 +5,19 @@ import {
     PropertyItemObjectResponse
 } from "@notionhq/client/build/src/api-endpoints";
 
-type Priorities = "Highest" | "High" | "Medium" | "Low" | "Lowest"
-type Status = "Doing" | "Todo" | "Pending" | "On hold"
-type Categories = "Projects" | "Studies" | "Administratif"
+export type NotionClient = Client
 
-interface DateRange {
+export type Priorities = "Highest" | "High" | "Medium" | "Low" | "Lowest"
+export type Status = "Doing" | "Todo" | "Pending" | "On hold"
+export type Categories = "Projects" | "Studies" | "Administratif"
+
+// TODO take into account that certain dates are just Date and not DateTime
+export interface DateRange {
     start: Date,
     end: Date | null
 }
 
-interface NotionObject {
+export interface NotionObject {
     id: string,
     name: string,
     priority: Priorities,
