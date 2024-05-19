@@ -22,7 +22,8 @@ interface NotionObject {
     category: Categories,
     date: DateRange | null,
     deadline: DateRange | null,
-    archived: boolean
+    archived: boolean,
+    lastEditedTime: Date
 }
 
 
@@ -46,12 +47,11 @@ export async function login(token: string) {
  * @param numberOfDaysInPast all the object after `today - numberOfDaysInPast days` will be queried
  */
 export async function getTasksFromNotionDatabase(notion: Client, databaseId: string, numberOfDaysInPast: number): Promise<NotionObject[]> {
-    const pages: Array<PageObjectResponse> = []
     let date = new Date()
     date.setDate(date.getDate() - numberOfDaysInPast)
-
     let cursor = undefined
 
+    const tasks: NotionObject[] = []
     const shouldContinue = true
     while (shouldContinue) {
         const {results, next_cursor} = await notion.databases.query({
@@ -64,32 +64,27 @@ export async function getTasksFromNotionDatabase(notion: Client, databaseId: str
                 }
             },
         })
-        results.forEach((result) => {
+        for (const result of results) {
             if (result.object == "page" && "properties" in result) {
-                pages.push(result)
+                tasks.push({
+                    id: result.id,
+                    name: await getOrFetchPropertyValue(result, "Nom", notion) as string,
+                    priority: await getOrFetchPropertyValue(result, "Priority", notion) as Priorities,
+                    category: await getOrFetchPropertyValue(result, "Category", notion) as Categories,
+                    status: await getOrFetchPropertyValue(result, "Status", notion) as Status,
+                    archived: await getOrFetchPropertyValue(result, "Archived", notion) as boolean,
+                    date: await getOrFetchPropertyValue(result, "Date", notion) as DateRange,
+                    deadline: await getOrFetchPropertyValue(result, "Deadline", notion) as DateRange,
+                    lastEditedTime: new Date(result.last_edited_time)
+                });
             } else {
-                throw TypeError(`${result.id} is not a PageObjectResponse, it is a ${result.object == 'page' ? 'PartialPageObjectResponse' : 'PartialDatabaseObjectResponse | DatabaseObjectResponse'}`)
+                throw TypeError(`${result.id} is not a PageObjectResponse, it is a ${result.object == 'page' ? 'PartialPageObjectResponse' : 'PartialDatabaseObjectResponse | DatabaseObjectResponse'}`);
             }
-        })
+        }
         if (!next_cursor) {
             break
         }
         cursor = next_cursor
-    }
-    console.log(`${pages.length} pages successfully fetched.`)
-
-    const tasks: NotionObject[] = []
-    for (const page of pages) {
-        tasks.push({
-            id: page.id,
-            name: await getOrFetchPropertyValue(page, "Nom", notion) as string,
-            priority: await getOrFetchPropertyValue(page, "Priority", notion) as Priorities,
-            category: await getOrFetchPropertyValue(page, "Category", notion) as Categories,
-            status: await getOrFetchPropertyValue(page, "Status", notion) as Status,
-            archived: await getOrFetchPropertyValue(page, "Archived", notion) as boolean,
-            date: await getOrFetchPropertyValue(page, "Date", notion) as DateRange,
-            deadline: await getOrFetchPropertyValue(page, "Deadline", notion) as DateRange,
-        })
     }
 
     return tasks
@@ -120,7 +115,7 @@ async function getOrFetchPropertyValue(page: PageObjectResponse,
     let property: PropertyItemObjectResponse = toPropertyItemObjectResponse(page.properties[name])[0]
 
     if (property[property.type] != null && TYPE_TO_VALUE[property.type](property[property.type]) == undefined) {
-        console.debug("Fetching the property again.")
+        console.debug("Fetching the property use API.")
         let propertyItem: PropertyItemObjectResponse | PropertyItemListResponse = await notion.pages.properties.retrieve({
             page_id: pageId,
             property_id: property.id,
