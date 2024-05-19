@@ -1,13 +1,12 @@
-import {authenticate} from "@google-cloud/local-auth"; // TODO change for the real auth lib?
 import process from "process";
-import path from "path";
+import path, {resolve} from "path";
 import {OAuth2Client} from 'google-auth-library';
-import {
-    google,   // The top level object used to access services
-    Auth,     // Namespace for auth related types
-    Common,   // General types used throughout the library
-} from 'googleapis';
+import {google,} from 'googleapis';
 import {JSONClient} from "google-auth-library/build/src/auth/googleauth";
+import * as http from "node:http";
+import {AddressInfo} from 'net';
+import destroyer = require('server-destroy');
+import arrify = require('arrify');
 
 const fs = require('fs').promises;
 // If modifying these scopes, delete token.json.
@@ -48,31 +47,108 @@ async function saveCredentials(client: OAuth2Client): Promise<void> {
     await fs.writeFile(TOKEN_PATH, payload);
 }
 
+function isAddressInfo(addr: string | AddressInfo | null): addr is AddressInfo {
+    return (addr as AddressInfo).port !== undefined;
+}
+
 /**
  * Load or request or authorization to call APIs.
  *
+ * This function is mostly from https://github.com/googleapis/nodejs-local-auth/blob/main/src/index.ts
+ * the main modification is the addition of a print of the `authorizeUrl` because the url isn't open
+ * when using a docker environment.
  */
-async function authorize() {
+export async function authorize(): Promise<JSONClient | OAuth2Client> {
     let jsonClient = await loadSavedCredentialsIfExist();
     if (jsonClient) {
         return jsonClient;
     }
-    // TODO not working inside docker (because auth link not opened)
-    let client = await authenticate({
-        scopes: SCOPES,
-        keyfilePath: CREDENTIALS_PATH,
-    });
-    if (client.credentials) {
-        await saveCredentials(client);
+
+    const keyFile = require(resolve(CREDENTIALS_PATH));
+    const keys = keyFile.installed || keyFile.web;
+    if (!keys.redirect_uris || keys.redirect_uris.length === 0) {
+        throw new Error("No valid redirect_uris provided.");
     }
-    return client;
+    const redirectUri = new URL(keys.redirect_uris[0] ?? 'http://localhost');
+    if (redirectUri.hostname !== 'localhost') {
+        throw new Error("No valid redirect_uris provided.");
+    }
+
+    // create an oAuth client to authorize the API call
+    const client = new OAuth2Client({
+        clientId: keys.client_id,
+        clientSecret: keys.client_secret,
+    });
+
+    return new Promise((resolve, reject) => {
+        const server = http.createServer(async (req, res) => {
+            try {
+                const url = new URL(req.url!, 'http://localhost:3000');
+                if (url.pathname !== redirectUri.pathname) {
+                    res.end('Invalid callback URL');
+                    return;
+                }
+                const searchParams = url.searchParams;
+                if (searchParams.has('error')) {
+                    res.end('Authorization rejected.');
+                    reject(new Error(searchParams.get('error')!));
+                    return;
+                }
+                if (!searchParams.has('code')) {
+                    res.end('No authentication code provided.');
+                    reject(new Error('Cannot read authentication code.'));
+                    return;
+                }
+
+                const code = searchParams.get('code');
+                const {tokens} = await client.getToken({
+                    code: code!,
+                    redirect_uri: redirectUri.toString(),
+                });
+                client.credentials = tokens;
+                resolve(client);
+                res.end('Authentication successful! Please return to the console.');
+                await saveCredentials(client)
+            } catch (e) {
+                reject(e);
+            } finally {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (server as any).destroy()
+            }
+        });
+
+        let listenPort = 3000;
+        if (keyFile.installed) {
+            // Use ephemeral port if not a web client
+            listenPort = 0;
+        } else if (redirectUri.port !== '') {
+            listenPort = Number(redirectUri.port);
+        }
+
+        server.listen(listenPort, () => {
+            const address = server.address();
+            if (isAddressInfo(address)) {
+                redirectUri.port = String(address.port);
+            }
+            const scopes = arrify(SCOPES || []);
+            const authorizeUrl = client.generateAuthUrl({
+                redirect_uri: redirectUri.toString(),
+                access_type: 'offline',
+                scope: scopes.join(' '),
+            });
+
+            // mod: print the url because of the docker env
+            console.log(`Go to ${authorizeUrl}`)
+        });
+        destroyer(server);
+    });
 }
 
 /**
  * Lists the next 10 events on the user's primary calendar.
  * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
  */
-async function listEvents(auth) {
+export async function listEvents(auth) {
     const calendar = google.calendar({version: 'v3', auth});
     const res = await calendar.events.list({
         calendarId: 'primary',
@@ -92,5 +168,3 @@ async function listEvents(auth) {
         console.log(`${start} - ${event.summary}`);
     });
 }
-
-authorize().then(listEvents).catch(console.error);
