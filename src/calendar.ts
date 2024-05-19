@@ -2,9 +2,10 @@ import process from "process";
 import path, {resolve} from "path";
 import {OAuth2Client} from 'google-auth-library';
 import {google,} from 'googleapis';
-import {JSONClient} from "google-auth-library/build/src/auth/googleauth";
 import * as http from "node:http";
 import {AddressInfo} from 'net';
+import {UserRefreshClient} from "google-auth-library/build/src/auth/refreshclient";
+import {DateRange} from "./notion";
 import destroyer = require('server-destroy');
 import arrify = require('arrify');
 
@@ -17,15 +18,25 @@ const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 const TOKEN_PATH = path.join(process.cwd(), 'token.json');
 const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
 
+export type CalendarClient = UserRefreshClient | OAuth2Client
+
+export interface CalendarObject {
+    id: string,
+    name: string,
+    description: string | null,
+    date: DateRange | null,
+    lastEditedTime: Date
+}
+
 /**
  * Reads previously authorized credentials from the save file.
  *
  */
-async function loadSavedCredentialsIfExist(): Promise<JSONClient | null> {
+async function loadSavedCredentialsIfExist(): Promise<UserRefreshClient | null> {
     try {
         const content = await fs.readFile(TOKEN_PATH);
         const credentials = JSON.parse(content);
-        return google.auth.fromJSON(credentials);
+        return google.auth.fromJSON(credentials) as UserRefreshClient;
     } catch (err) {
         return null;
     }
@@ -58,7 +69,7 @@ function isAddressInfo(addr: string | AddressInfo | null): addr is AddressInfo {
  * the main modification is the addition of a print of the `authorizeUrl` because the url isn't open
  * when using a docker environment.
  */
-export async function authorize(): Promise<JSONClient | OAuth2Client> {
+export async function authorize(): Promise<CalendarClient> {
     let jsonClient = await loadSavedCredentialsIfExist();
     if (jsonClient) {
         return jsonClient;
@@ -146,25 +157,50 @@ export async function authorize(): Promise<JSONClient | OAuth2Client> {
 
 /**
  * Lists the next 10 events on the user's primary calendar.
- * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
+ * @param auth An authorized OAuth2 client.
  */
-export async function listEvents(auth) {
+export async function listEvents(auth: CalendarClient, calendarId: string, numberOfDaysInPast: number): Promise<CalendarObject[]> {
     const calendar = google.calendar({version: 'v3', auth});
-    const res = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: new Date().toISOString(),
-        maxResults: 10,
-        singleEvents: true,
-        orderBy: 'startTime',
-    });
-    const events = res.data.items;
-    if (!events || events.length === 0) {
-        console.log('No upcoming events found.');
-        return;
+    let date = new Date()
+    date.setDate(date.getDate() - numberOfDaysInPast)
+
+    let events: CalendarObject[] = []
+
+    let pageToken = null;
+    let should_continue = true;
+    while (should_continue) {
+        const res = await calendar.events.list({
+            calendarId: calendarId,
+            timeMin: date.toISOString(),
+            maxResults: 50,
+            singleEvents: true,
+            orderBy: 'startTime',
+            pageToken: pageToken,
+        });
+
+
+        if (!res.data.items || res.data.items.length === 0) {
+            console.log('No upcoming events found.');
+            return;
+        }
+
+        res.data.items.map((event) => {
+            events.push({
+                id: event.id,
+                name: event.summary,
+                description: event.description,
+                date: {
+                    start: new Date(event.start.dateTime || event.start.date),
+                    end: new Date(event.start.dateTime || event.start.date)
+                },
+                lastEditedTime: new Date(event.updated)
+            })
+        });
+        pageToken = res.data.nextPageToken
+        if (!pageToken) {
+            should_continue = false
+        }
     }
-    console.log('Upcoming 10 events:');
-    events.map((event, i) => {
-        const start = event.start.dateTime || event.start.date;
-        console.log(`${start} - ${event.summary}`);
-    });
+
+    return events
 }

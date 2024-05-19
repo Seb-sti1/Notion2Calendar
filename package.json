@@ -17,6 +17,7 @@
   "description": "It synchronises a collection from Notion to Google Calendar.",
   "devDependencies": {
     "@eslint/js": "^9.3.0",
+    "@types/server-destroy": "^1.0.3",
     "eslint": "^8.57.0",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
