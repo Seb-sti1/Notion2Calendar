@@ -158,6 +158,8 @@ export async function authorize(): Promise<CalendarClient> {
 /**
  * Lists the next 10 events on the user's primary calendar.
  * @param auth An authorized OAuth2 client.
+ * @param calendarId the id of the calendar to use
+ * @param numberOfDaysInPast all the events after today - numberOfDaysInPast days will be updated
  */
 export async function listEvents(auth: CalendarClient, calendarId: string, numberOfDaysInPast: number): Promise<CalendarObject[]> {
     const calendar = google.calendar({version: 'v3', auth});
@@ -180,8 +182,7 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
 
 
         if (!res.data.items || res.data.items.length === 0) {
-            console.log('No upcoming events found.');
-            return;
+            return [];
         }
 
         res.data.items.map((event) => {
