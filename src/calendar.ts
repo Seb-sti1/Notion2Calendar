@@ -186,13 +186,16 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
         }
 
         res.data.items.map((event) => {
+            const startDate = new Date(event.start.dateTime || event.start.date)
+            const endDate = new Date(event.end.dateTime || event.end.date)
+
             events.push({
                 id: event.id,
                 name: event.summary,
                 description: event.description,
                 date: {
-                    start: new Date(event.start.dateTime || event.start.date),
-                    end: new Date(event.start.dateTime || event.start.date),
+                    start: startDate,
+                    end: (event.start.date != null && event.start.date === event.end.date) ? null : endDate,
                     isDateTime: event.start.dateTime != null
                 },
                 lastEditedTime: new Date(event.updated)
