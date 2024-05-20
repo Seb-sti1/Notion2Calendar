@@ -1,7 +1,7 @@
 import process from "process";
 import path, {resolve} from "path";
 import {OAuth2Client} from 'google-auth-library';
-import {google,} from 'googleapis';
+import {calendar_v3, google} from 'googleapis';
 import * as http from "node:http";
 import {AddressInfo} from 'net';
 import {UserRefreshClient} from "google-auth-library/build/src/auth/refreshclient";
@@ -11,7 +11,7 @@ import arrify = require('arrify');
 
 const fs = require('fs').promises;
 // If modifying these scopes, delete token.json.
-const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
@@ -204,4 +204,28 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
     }
 
     return events
+}
+
+export async function createEvent(auth: CalendarClient, calendarId: string, event: CalendarObject): Promise<boolean> {
+    const calendar: calendar_v3.Calendar = google.calendar({version: 'v3', auth});
+    const dateField = event.date.isDateTime ? 'dateTime' : 'date'
+    const startDate = event.date.isDateTime ? event.date.start.toISOString() : event.date.start.toISOString().split('T')[0]
+    const endDate = event.date.isDateTime ? event.date.end?.toISOString() : event.date.end?.toISOString().split('T')[0]
+
+    const request = await calendar.events.insert({
+        calendarId: calendarId,
+        requestBody:
+            {
+                summary: event.name,
+                description: event.description,
+                start: {
+                    [dateField]: startDate,
+                },
+                end: {
+                    [dateField]: event.date.end ? endDate : startDate,
+                }
+            }
+    });
+
+    return request.status == 200
 }
