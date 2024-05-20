@@ -13,7 +13,7 @@ export type Categories = "Projects" | "Studies" | "Administratif"
 
 export interface DateRange {
     start: Date,
-    end: Date | null,
+    end?: Date,
     isDateTime: boolean
 }
 
@@ -23,8 +23,8 @@ export interface NotionObject {
     priority: Priorities,
     status: Status,
     category: Categories,
-    date: DateRange | null,
-    deadline: DateRange | null,
+    date?: DateRange,
+    deadline?: DateRange,
     archived: boolean,
     lastEditedTime: Date
 }

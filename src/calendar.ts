@@ -21,11 +21,11 @@ const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
 export type CalendarClient = UserRefreshClient | OAuth2Client
 
 export interface CalendarObject {
-    id: string,
+    id?: string,
     name: string,
-    description: string | null,
-    date: DateRange | null,
-    lastEditedTime: Date
+    description: string,
+    date: DateRange,
+    lastEditedTime?: Date
 }
 
 /**
