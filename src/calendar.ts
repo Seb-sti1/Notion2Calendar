@@ -191,7 +191,8 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
                 description: event.description,
                 date: {
                     start: new Date(event.start.dateTime || event.start.date),
-                    end: new Date(event.start.dateTime || event.start.date)
+                    end: new Date(event.start.dateTime || event.start.date),
+                    isDateTime: event.start.dateTime != null
                 },
                 lastEditedTime: new Date(event.updated)
             })

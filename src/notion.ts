@@ -11,10 +11,10 @@ export type Priorities = "Highest" | "High" | "Medium" | "Low" | "Lowest"
 export type Status = "Doing" | "Todo" | "Pending" | "On hold"
 export type Categories = "Projects" | "Studies" | "Administratif"
 
-// TODO take into account that certain dates are just Date and not DateTime
 export interface DateRange {
     start: Date,
-    end: Date | null
+    end: Date | null,
+    isDateTime: boolean
 }
 
 export interface NotionObject {
@@ -100,7 +100,8 @@ const TYPE_TO_VALUE = {
     "date": (p: PropertyItemListResponse): undefined | DateRange =>
         p["start"] == null ? undefined : {
             start: new Date(p["start"]),
-            end: p["end"] == null ? null : new Date(p["end"])
+            end: p["end"] == null ? null : new Date(p["end"]),
+            isDateTime: !/^\d\d\d\d-\d\d-\d\d$/.test(p["start"])
         },
     "checkbox": (p: PropertyItemListResponse) => p
 }
