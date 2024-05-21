@@ -1,4 +1,4 @@
-import {getPage, getTasksFromNotionDatabase, login, NotionClient, NotionObject} from "./notion";
+import {getPage, getTasksFromNotionDatabase, login, NotionClient, NotionObject, updatePageDate} from "./notion";
 import 'dotenv/config'
 import {authorize, CalendarClient, CalendarObject, createEvent, deleteEvent, listEvents, updateEvent} from "./calendar";
 
@@ -139,7 +139,7 @@ async function main({notion, gCalendar}: {
     // send request for elements update in notion
     if (toUpdateNotion.length > 0) {
         console.log("The following tasks need to be updated:", toUpdateNotion.map((t) => t.name).join('; '))
-        // TODO update
+        await Promise.all(toUpdateNotion.map((t) => updatePageDate(notion, t.id, t.date)))
     } else {
         console.log("No task needs to be updated")
     }

@@ -38,7 +38,6 @@ _WIP: Docker image_
 
 ## TODOS
 
-- Finish app.ts (delete/update events/tasks)
 - Production
 - Check [watch](https://developers.google.com/calendar/api/v3/reference/events/watch?hl=fr)
 
