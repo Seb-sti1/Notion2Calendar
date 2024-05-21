@@ -1,6 +1,7 @@
 import {Client} from "@notionhq/client"
 import {
     PageObjectResponse,
+    PartialPageObjectResponse,
     PropertyItemListResponse,
     PropertyItemObjectResponse
 } from "@notionhq/client/build/src/api-endpoints";
@@ -44,6 +45,26 @@ export async function login(token: string) {
 }
 
 /**
+ * Convert a PageObjectResponse to a NotionObject
+ * @param notion the API (required if some properties need to be retrieved)
+ * @param page the page to convert
+ * @return the NotionObject
+ */
+async function pageObjectToNotionObject(notion: Client, page: PageObjectResponse): Promise<NotionObject> {
+    return {
+        id: page.id,
+        name: await getOrFetchPropertyValue(page, "Nom", notion) as string,
+        priority: await getOrFetchPropertyValue(page, "Priority", notion) as Priorities,
+        category: await getOrFetchPropertyValue(page, "Category", notion) as Categories,
+        status: await getOrFetchPropertyValue(page, "Status", notion) as Status,
+        archived: await getOrFetchPropertyValue(page, "Archived", notion) as boolean,
+        date: await getOrFetchPropertyValue(page, "Date", notion) as DateRange,
+        deadline: await getOrFetchPropertyValue(page, "Deadline", notion) as DateRange,
+        lastEditedTime: new Date(page.last_edited_time)
+    }
+}
+
+/**
  * Get all object in the database
  * @param notion the api object
  * @param databaseId the database id to query
@@ -69,17 +90,7 @@ export async function getTasksFromNotionDatabase(notion: Client, databaseId: str
         })
         for (const result of results) {
             if (result.object == "page" && "properties" in result) {
-                tasks.push({
-                    id: result.id,
-                    name: await getOrFetchPropertyValue(result, "Nom", notion) as string,
-                    priority: await getOrFetchPropertyValue(result, "Priority", notion) as Priorities,
-                    category: await getOrFetchPropertyValue(result, "Category", notion) as Categories,
-                    status: await getOrFetchPropertyValue(result, "Status", notion) as Status,
-                    archived: await getOrFetchPropertyValue(result, "Archived", notion) as boolean,
-                    date: await getOrFetchPropertyValue(result, "Date", notion) as DateRange,
-                    deadline: await getOrFetchPropertyValue(result, "Deadline", notion) as DateRange,
-                    lastEditedTime: new Date(result.last_edited_time)
-                });
+                tasks.push(await pageObjectToNotionObject(notion, result));
             } else {
                 throw TypeError(`${result.id} is not a PageObjectResponse, it is a ${result.object == 'page' ? 'PartialPageObjectResponse' : 'PartialDatabaseObjectResponse | DatabaseObjectResponse'}`);
             }
@@ -152,4 +163,49 @@ function toPropertyItemObjectResponse(property: any): PropertyItemObjectResponse
     } else {
         return [{object: 'property_item', ...property}]
     }
+}
+
+/**
+ * Get a page given an id
+ * @param notion the API
+ * @param pageId the page to get
+ * @return The page or null
+ */
+export async function getPage(notion: Client, pageId: string): Promise<NotionObject | null> {
+    const response: PageObjectResponse | PartialPageObjectResponse = await notion.pages.retrieve({page_id: pageId});
+    if (!response)
+        return null
+
+    if ("properties" in response) {
+        return await pageObjectToNotionObject(notion, response as PageObjectResponse)
+    } else {
+        throw TypeError(`${pageId} is not a PageObjectResponse, it is a PartialPageObjectResponse.`);
+    }
+}
+
+/**
+ * Update the date property of page
+ * @param notion the API
+ * @param pageId the page to update
+ * @param date the new value of the date property
+ * @return if it succeeded
+ */
+export async function updatePageDate(notion: Client, pageId: string, date: DateRange): Promise<boolean> {
+    const response = await notion.pages.update({
+                page_id: pageId,
+                properties: {
+                    'Date': {
+                        type: 'date',
+                        date: {
+                            start: date.isDateTime ? date.start.toISOString() : date.start.toISOString().split('T')[0],
+                            end: date.end == null ? null : (date.isDateTime ? date.end.toISOString() : date.end.toISOString().split('T')[0]),
+                            time_zone: null
+                        }
+                    },
+                },
+            }
+        )
+    ;
+
+    return response !== undefined
 }
