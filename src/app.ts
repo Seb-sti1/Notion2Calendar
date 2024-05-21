@@ -1,6 +1,6 @@
 import {getTasksFromNotionDatabase, login, NotionClient, NotionObject} from "./notion";
 import 'dotenv/config'
-import {authorize, CalendarClient, CalendarObject, createEvent, listEvents} from "./calendar";
+import {authorize, CalendarClient, CalendarObject, createEvent, listEvents, updateEvent} from "./calendar";
 
 /**
  * Convert a description to a list of property.
@@ -92,8 +92,9 @@ async function main({notion, gCalendar}: {
     const toDelete: CalendarObject[] = calendarEvents.filter((e) => notionTasks.find((t) => t.id === eventDescriptionToProperties(e.description).id) === undefined)
     // send request for elements deletion
     if (toDelete.length > 0) {
+        // FIXME filter using start date whereas Calendar use end date
         console.log("The following events need to be deleted:", toDelete.map((e) => e.name).join('; '))
-        // TODO delete
+        // await Promise.all(toDelete.map((e) => deleteEvent(gCalendar, process.env.CALENDAR_ID, e.id)))
     } else {
         console.log("No event needs to be deleted")
     }
@@ -148,7 +149,7 @@ async function main({notion, gCalendar}: {
     // send request for elements update in calendar
     if (toUpdateCalendar.length > 0) {
         console.log("The following events need to be updated:", toUpdateCalendar.map((e) => e.name).join('; '))
-        // TODO update
+        await Promise.all(toUpdateCalendar.map((e) => updateEvent(gCalendar, process.env.CALENDAR_ID, e)))
     } else {
         console.log("No event needs to be updated")
     }

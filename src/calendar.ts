@@ -210,11 +210,30 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
     return events
 }
 
-export async function createEvent(auth: CalendarClient, calendarId: string, event: CalendarObject): Promise<boolean> {
-    const calendar: calendar_v3.Calendar = google.calendar({version: 'v3', auth});
-    const dateField = event.date.isDateTime ? 'dateTime' : 'date'
+/**
+ * Compute the date field when query Calendar API from a CalendarObject
+ * @param event the event
+ */
+function getDateFields(event: CalendarObject): { dateField: string, startDate: string, endDate: string } {
     const startDate = event.date.isDateTime ? event.date.start.toISOString() : event.date.start.toISOString().split('T')[0]
     const endDate = event.date.isDateTime ? event.date.end?.toISOString() : event.date.end?.toISOString().split('T')[0]
+
+    return {
+        dateField: event.date.isDateTime ? 'dateTime' : 'date',
+        startDate: startDate,
+        endDate: event.date.end ? endDate : startDate,
+    }
+}
+
+/**
+ * Create an event
+ * @param auth An authorized OAuth2 client.
+ * @param calendarId the id of the calendar to use
+ * @param event the event to create
+ */
+export async function createEvent(auth: CalendarClient, calendarId: string, event: CalendarObject): Promise<boolean> {
+    const calendar: calendar_v3.Calendar = google.calendar({version: 'v3', auth});
+    const {dateField, startDate, endDate} = getDateFields(event)
 
     const request = await calendar.events.insert({
         calendarId: calendarId,
@@ -222,12 +241,50 @@ export async function createEvent(auth: CalendarClient, calendarId: string, even
             {
                 summary: event.name,
                 description: event.description,
-                start: {
-                    [dateField]: startDate,
-                },
-                end: {
-                    [dateField]: event.date.end ? endDate : startDate,
-                }
+                start: {[dateField]: startDate},
+                end: {[dateField]: endDate}
+            }
+    });
+
+    return request.status == 200
+}
+
+/**
+ * Delete an event
+ * @param auth An authorized OAuth2 client.
+ * @param calendarId the id of the calendar to use
+ * @param eventId the id of the event
+ */
+export async function deleteEvent(auth: CalendarClient, calendarId: string, eventId: string): Promise<boolean> {
+    const calendar: calendar_v3.Calendar = google.calendar({version: 'v3', auth});
+
+    const request = await calendar.events.delete({
+        calendarId: calendarId,
+        eventId: eventId
+    });
+
+    return request.status == 200
+}
+
+/**
+ * Update an event
+ * @param auth An authorized OAuth2 client.
+ * @param calendarId the id of the calendar to use
+ * @param event the event to update
+ */
+export async function updateEvent(auth: CalendarClient, calendarId: string, event: CalendarObject): Promise<boolean> {
+    const calendar: calendar_v3.Calendar = google.calendar({version: 'v3', auth})
+    const {dateField, startDate, endDate} = getDateFields(event)
+
+    const request = await calendar.events.update({
+        calendarId: calendarId,
+        eventId: event.id,
+        requestBody:
+            {
+                summary: event.name,
+                description: event.description,
+                start: {[dateField]: startDate},
+                end: {[dateField]: endDate}
             }
     });
 
