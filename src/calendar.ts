@@ -187,7 +187,13 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
 
         res.data.items.map((event) => {
             const startDate = new Date(event.start.dateTime || event.start.date)
-            const endDate = new Date(event.end.dateTime || event.end.date)
+            let endDate = new Date(event.end.dateTime || event.end.date)
+
+            // When using full day event, the end date is the "next" day
+            // (e.g. for a full day event on the May 22nd, start.date = "22/05/2024", end.date = "23/05/2024")
+            if (event.start.dateTime == null) {
+                endDate.setDate(endDate.getDate() - 1)
+            }
 
             events.push({
                 id: event.id,
@@ -216,12 +222,18 @@ export async function listEvents(auth: CalendarClient, calendarId: string, numbe
  */
 function getDateFields(event: CalendarObject): { dateField: string, startDate: string, endDate: string } {
     const startDate = event.date.isDateTime ? event.date.start.toISOString() : event.date.start.toISOString().split('T')[0]
-    const endDate = event.date.isDateTime ? event.date.end?.toISOString() : event.date.end?.toISOString().split('T')[0]
+    let endDate = event.date.end ? event.date.end : event.date.start
+
+    // When using full day event, the end date is the "next" day
+    // (e.g. for a full day event on the May 22nd, start.date = "22/05/2024", end.date = "23/05/2024")
+    if (!event.date.isDateTime) {
+        endDate.setDate(endDate.getDate() + 1)
+    }
 
     return {
         dateField: event.date.isDateTime ? 'dateTime' : 'date',
         startDate: startDate,
-        endDate: event.date.end ? endDate : startDate,
+        endDate: event.date.isDateTime ? endDate.toISOString() : endDate.toISOString().split('T')[0]
     }
 }
 
