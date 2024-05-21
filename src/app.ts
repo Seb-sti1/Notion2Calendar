@@ -137,7 +137,11 @@ async function main({notion, gCalendar}: {
                 return null
 
             const taskToEvent = notionObjectToCalendarObject(task)
-            if (event !== taskToEvent) {
+            if (event.description !== taskToEvent.description
+                || event.date.start.getTime() !== taskToEvent.date.start.getTime()
+                || event.date.end?.getTime() !== taskToEvent.date.end?.getTime()
+                || event.date.isDateTime !== taskToEvent.date.isDateTime
+                || event.name !== taskToEvent.name) {
                 return {
                     id: event.id,
                     ...taskToEvent
