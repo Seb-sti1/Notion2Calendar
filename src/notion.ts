@@ -169,7 +169,7 @@ function toPropertyItemObjectResponse(property: any): PropertyItemObjectResponse
  * Get a page given an id
  * @param notion the API
  * @param pageId the page to get
- * @return The page or null
+ * @return The page or null (if it doesn't exist or no date)
  */
 export async function getPage(notion: Client, pageId: string): Promise<NotionObject | null> {
     const response: PageObjectResponse | PartialPageObjectResponse = await notion.pages.retrieve({page_id: pageId});
@@ -177,7 +177,13 @@ export async function getPage(notion: Client, pageId: string): Promise<NotionObj
         return null
 
     if ("properties" in response) {
-        return await pageObjectToNotionObject(notion, response as PageObjectResponse)
+        const page = await pageObjectToNotionObject(notion, response as PageObjectResponse)
+
+        if (page.date) {
+            return page
+        } else {
+            return null
+        }
     } else {
         throw TypeError(`${pageId} is not a PageObjectResponse, it is a PartialPageObjectResponse.`);
     }

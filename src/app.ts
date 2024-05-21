@@ -1,6 +1,6 @@
-import {getTasksFromNotionDatabase, login, NotionClient, NotionObject} from "./notion";
+import {getPage, getTasksFromNotionDatabase, login, NotionClient, NotionObject} from "./notion";
 import 'dotenv/config'
-import {authorize, CalendarClient, CalendarObject, createEvent, listEvents, updateEvent} from "./calendar";
+import {authorize, CalendarClient, CalendarObject, createEvent, deleteEvent, listEvents, updateEvent} from "./calendar";
 
 /**
  * Convert a description to a list of property.
@@ -87,14 +87,31 @@ async function main({notion, gCalendar}: {
     } else {
         console.log("No event needs to be created")
     }
-
     // find element(s) to delete
-    const toDelete: CalendarObject[] = calendarEvents.filter((e) => notionTasks.find((t) => t.id === eventDescriptionToProperties(e.description).id) === undefined)
+    const toDelete: CalendarObject[] = (await Promise.all(calendarEvents
+        .filter((e) => notionTasks.find((t) => t.id === eventDescriptionToProperties(e.description).id) === undefined)
+        .map(async (e) => {
+            const id = eventDescriptionToProperties(e.description).id
+
+            if (typeof id === 'string' || id as any instanceof String) {
+                const task = await getPage(notion, id as string)
+
+                // this is a missing task due to the fact Notion filter is based on the start date
+                // whereas Calendar use the end date
+                if (task) {
+                    // add it the notion list because
+                    notionTasks.push(task)
+                    return null
+                } else {
+                    return e
+                }
+            }
+            return e
+        }))).filter((e) => e != null)
     // send request for elements deletion
     if (toDelete.length > 0) {
-        // FIXME filter using start date whereas Calendar use end date
         console.log("The following events need to be deleted:", toDelete.map((e) => e.name).join('; '))
-        // await Promise.all(toDelete.map((e) => deleteEvent(gCalendar, process.env.CALENDAR_ID, e.id)))
+        await Promise.all(toDelete.map((e) => deleteEvent(gCalendar, process.env.CALENDAR_ID, e.id)))
     } else {
         console.log("No event needs to be deleted")
     }
