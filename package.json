@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "nodemon",
     "start": "ts-node src/app.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "production": "node dist/app.js"
   },
   "keywords": [
     "notion",
@@ -25,7 +26,6 @@
     "typescript-eslint": "^7.9.0"
   },
   "dependencies": {
-    "@google-cloud/local-auth": "^2.1.0",
     "@notionhq/client": "^2.2.15",
     "dotenv": "^16.4.5",
     "googleapis": "^105.0.0",

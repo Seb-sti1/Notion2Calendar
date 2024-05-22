@@ -34,11 +34,24 @@ npm run dev
 
 ### Production
 
-_WIP: Docker image_
+You will need to have the `credentials.json` for the Google API page, the `.env` (see the `example.env`)
+and the `token.json` (at first empty). The first time, there will be a link to click on to authorise the
+connection to Google Calendar (it will fill the `token.json` to remember the connected account).
+
+```sh
+npm run build # build source
+docker compose up # build (if necessary) the docker image and start it
+docker compose down # if you want to remove the container
+```
+
+If you want to run that regularly you can use `crontab -e` to add a `cron` task:
+
+```cronexp
+*/15 * * * * cd /the-folder-to-credentials && docker compose up > /dev/null 2>&1 && docker compose down > /dev/null 2>&1
+```
 
 ## TODOS
 
-- Production
 - Check [watch](https://developers.google.com/calendar/api/v3/reference/events/watch?hl=fr)
 
 ## Useful link

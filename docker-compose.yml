@@ -1,0 +1,8 @@
+services:
+  notion2calendar:
+    build: .
+    image: sebsti1/notion2calendar
+    volumes:
+      - ./.env:/app/.env
+      - ./token.json:/app/token.json
+      - ./credentials.json:/app/credentials.json
