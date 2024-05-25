@@ -5,3 +5,5 @@ node_modules/
 credentials.json
 token.json
 .env
+
+output.log
