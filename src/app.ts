@@ -1,6 +1,8 @@
 import {getPage, getTasksFromNotionDatabase, login, NotionClient, NotionObject, updatePageDate} from "./notion";
 import 'dotenv/config'
-import {authorize, CalendarClient, CalendarObject, createEvent, deleteEvent, listEvents, updateEvent} from "./calendar";
+import {CalendarObject, createEvent, deleteEvent, listEvents, updateEvent} from "./calendar";
+import {authorize, CalendarClient} from "./google-auth";
+
 
 /**
  * Convert a description to a list of property.
