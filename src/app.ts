@@ -1,7 +1,7 @@
 import {getPage, getTasksFromNotionDatabase, login, NotionClient, NotionObject, updatePageDate} from "./notion";
 import 'dotenv/config'
 import {CalendarObject, createEvent, deleteEvent, listEvents, updateEvent} from "./calendar";
-import {authorize, CalendarClient} from "./google-auth";
+import {authorize, CalendarClient, requestUserAuth} from "./google-auth";
 
 
 /**
@@ -178,8 +178,20 @@ async function main({notion, gCalendar}: {
     }
 }
 
+console.log(new Date().toISOString())
+
+// TODO update readme
+if (process.argv.length > 2)
+    requestUserAuth()
+        .then(() => console.log("Access granted."))
+        .catch(console.error)
 
 login(process.env.NOTION_TOKEN)
     .then(async (notion) => ({notion, gCalendar: await authorize()}))
-    .then(main)
+    .then(async ({notion, gCalendar}) => {
+        if (notion == null || gCalendar == null)
+            console.error('notion or gCalendar not properly authenticated')
+        await main({notion, gCalendar})
+    })
     .catch(console.error)
+

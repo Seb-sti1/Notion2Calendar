@@ -1,12 +1,10 @@
-import {UserRefreshClient} from "google-auth-library/build/src/auth/refreshclient";
 import {OAuth2Client} from "google-auth-library";
 import path, {resolve} from "path";
 import process from "process";
-import {google} from "googleapis";
 import {AddressInfo} from "net";
 import http from "node:http";
+import arrify from 'arrify';
 import destroyer = require('server-destroy');
-import arrify = require('arrify');
 
 const fs = require('fs').promises;
 
@@ -19,19 +17,27 @@ const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 const TOKEN_PATH = path.join(process.cwd(), 'token.json');
 const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
 
+interface TokensFile {
+    access_token: string,
+    refresh_token: string,
+}
 
-export type CalendarClient = UserRefreshClient | OAuth2Client
+interface KeyFile {
+    client_id: string,
+    client_secret: string,
+    redirect_uris: string[],
+}
+
+export type CalendarClient = OAuth2Client
 
 
 /**
  * Reads previously authorized credentials from the save file.
  *
  */
-async function loadSavedCredentialsIfExist(): Promise<UserRefreshClient | null> {
+async function loadJSON<T>(path: string): Promise<T | null> {
     try {
-        const content = await fs.readFile(TOKEN_PATH);
-        const credentials = JSON.parse(content);
-        return google.auth.fromJSON(credentials) as UserRefreshClient;
+        return JSON.parse(await fs.readFile(path));
     } catch (err) {
         return null;
     }
@@ -41,43 +47,22 @@ async function loadSavedCredentialsIfExist(): Promise<UserRefreshClient | null> 
  * Serializes credentials to a file compatible with GoogleAuth.fromJSON.
  */
 async function saveCredentials(client: OAuth2Client): Promise<void> {
-    const content = await fs.readFile(CREDENTIALS_PATH);
-    const keys = JSON.parse(content);
-    const key = keys.installed || keys.web;
-    const payload = JSON.stringify({
-        type: 'authorized_user',
-        client_id: key.client_id,
-        client_secret: key.client_secret,
+    await fs.writeFile(TOKEN_PATH, JSON.stringify({
+        access_token: client.credentials.access_token,
         refresh_token: client.credentials.refresh_token,
-    });
-    await fs.writeFile(TOKEN_PATH, payload);
+    }));
 }
-
-function isAddressInfo(addr: string | AddressInfo | null): addr is AddressInfo {
-    return (addr as AddressInfo).port !== undefined;
-}
-
 
 /**
- * Load or request or authorization to call APIs.
+ * Tries to authenticate to the Google Account with no prior information.
+ * It WILL require the user to give consent.
  *
- * This function is mostly from https://github.com/googleapis/nodejs-local-auth/blob/main/src/index.ts
- * the main modification is the addition of a print of the `authorizeUrl` because the url isn't open
- * when using a docker environment.
+ * @return The google authenticated client (or null on error)
  */
-export async function authorize(): Promise<CalendarClient> {
-    let jsonClient = await loadSavedCredentialsIfExist();
-    if (jsonClient) {
-        return jsonClient;
-    }
-
-    const keyFile = require(resolve(CREDENTIALS_PATH));
+export async function requestUserAuth(): Promise<CalendarClient> {
+    const keyFile = await loadJSON<{ installed?: KeyFile, web?: KeyFile }>(CREDENTIALS_PATH)
     const keys = keyFile.installed || keyFile.web;
     if (!keys.redirect_uris || keys.redirect_uris.length === 0) {
-        throw new Error("No valid redirect_uris provided.");
-    }
-    const redirectUri = new URL(keys.redirect_uris[0] ?? 'http://localhost');
-    if (redirectUri.hostname !== 'localhost') {
         throw new Error("No valid redirect_uris provided.");
     }
 
@@ -86,6 +71,11 @@ export async function authorize(): Promise<CalendarClient> {
         clientId: keys.client_id,
         clientSecret: keys.client_secret,
     });
+
+    const redirectUri = new URL(keys.redirect_uris[0] ?? 'http://localhost');
+    if (redirectUri.hostname !== 'localhost') {
+        throw new Error("No valid redirect_uris provided.");
+    }
 
     return new Promise((resolve, reject) => {
         const server = http.createServer(async (req, res) => {
@@ -124,17 +114,11 @@ export async function authorize(): Promise<CalendarClient> {
             }
         });
 
-        let listenPort = 3000;
-        if (keyFile.installed) {
-            // Use ephemeral port if not a web client
-            listenPort = 0;
-        } else if (redirectUri.port !== '') {
-            listenPort = Number(redirectUri.port);
-        }
+        const listenPort = Number(redirectUri.port)
 
         server.listen(listenPort, () => {
-            const address = server.address();
-            if (isAddressInfo(address)) {
+            const address = server.address() as AddressInfo;
+            if (address.port !== undefined) {
                 redirectUri.port = String(address.port);
             }
             const scopes = arrify(SCOPES || []);
@@ -149,4 +133,55 @@ export async function authorize(): Promise<CalendarClient> {
         });
         destroyer(server);
     });
+}
+
+/**
+ * Tries to authenticate to the Google Account using previously saved tokens
+ *
+ * @return The google authenticated client (or null on error)
+ */
+export async function authorize(): Promise<CalendarClient | null> {
+    const keyFile = await loadJSON<{ installed?: KeyFile, web?: KeyFile }>(CREDENTIALS_PATH)
+    const keys = keyFile.installed || keyFile.web;
+    if (!keys.redirect_uris || keys.redirect_uris.length === 0) {
+        throw new Error("No valid redirect_uris provided.");
+    }
+
+    // create an oAuth client to authorize the API call
+    const client = new OAuth2Client({
+        clientId: keys.client_id,
+        clientSecret: keys.client_secret,
+    });
+
+    let jsonClient = await loadJSON<TokensFile>(TOKEN_PATH);
+    if (jsonClient) {
+        console.info('Found saved tokens.')
+        client.setCredentials({
+            access_token: jsonClient.access_token,
+            refresh_token: jsonClient.refresh_token,
+        });
+
+        // tries first with the saved access_token
+        try {
+            const tokenInfo = await client.getTokenInfo(jsonClient.access_token);
+            console.info('Access token is valid until', new Date(tokenInfo.expiry_date).toISOString());
+
+            return client
+        } catch (err) {
+            console.log('Access token is invalid, refreshing token:', err);
+        }
+
+        // tries to get another access_token using the refresh_token
+        try {
+            const tokenResponse = await client.refreshAccessToken();
+            client.setCredentials(tokenResponse.credentials);
+            await saveCredentials(client);
+            console.log('Access token refreshed successfully');
+            return client
+        } catch (refreshErr) {
+            console.error('Error refreshing access token:', refreshErr);
+        }
+    }
+    console.error('No possibility to log to the Google Account, you will need to reauthorized the application.')
+    return null
 }

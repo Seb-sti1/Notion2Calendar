@@ -35,7 +35,8 @@ npm run dev
 ### Production
 
 You will need to have the `credentials.json` for the Google API page, the `.env` (see the `example.env`)
-and the `token.json` (at first empty). The first time, there will be a link to click on to authorise the
+and the `token.json` (at first empty). To authorise the application to access Google API you will need
+to run `npm run login`, there will be a link to click on to authorise the
 connection to Google Calendar (it will fill the `token.json` to remember the connected account).
 
 ```sh

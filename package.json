@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "nodemon",
     "start": "ts-node src/app.ts",
+    "login": "ts-node src/app.ts --login",
     "build": "tsc",
     "production": "node dist/app.js"
   },
