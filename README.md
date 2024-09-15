@@ -1,9 +1,12 @@
-# Notion to GCalendar
 
-**The current version doesn't fully work (see #1) but Notion,
+**The current version doesn't fully work (see [#1](https://github.com/Seb-sti1/Notion2Calendar/issues/1)), but Notion
 has released an IOS/Android Notion Calendar app (which was the main reason for this repo).
 Hence, I decided to archive this repo.**
 
+<br/>
+<br/>
+
+# Notion to GCalendar
 
 This repository is meant to synchronise a collection from Notion
 to Google Calendar.
